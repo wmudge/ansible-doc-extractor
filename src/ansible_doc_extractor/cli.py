@@ -13,6 +13,7 @@ from jinja2.runtime import Undefined
 
 import yaml
 
+# TODO Colors: https://stackoverflow.com/a/60991308/1629168
 
 # The rst_ify filter has been shamelessly stolen from the Ansible helpers in
 # hacking subfolder. So all of the credit goes to the Ansible authors.
@@ -48,6 +49,8 @@ def convert_descriptions(data):
     for definition in data.values():
         if "description" in definition:
             definition["description"] = ensure_list(definition["description"])
+        if "sample" in definition:
+            definition["sample"] = ensure_list(definition["sample"])
         if "suboptions" in definition:
             convert_descriptions(definition["suboptions"])
         if "contains" in definition:
@@ -62,7 +65,8 @@ def render_module_docs(output_folder, module, template):
 
     doc.update(
         examples=examples,
-        returndocs=yaml.safe_load(returndocs) if returndocs else {},
+        # returndocs=yaml.safe_load(returndocs) if returndocs else {},
+        returndocs=returndocs if returndocs else {},
         metadata=metadata,
     )
 
@@ -84,7 +88,11 @@ def render_module_docs(output_folder, module, template):
 
 
 def get_template(custom_template):
-    env = Environment(loader=PackageLoader(__name__), trim_blocks=True)
+    env = Environment(
+        loader=PackageLoader(__name__),
+        trim_blocks=True,
+        extensions=['jinja2.ext.do']
+    )
     env.filters["rst_ify"] = rst_ify
     if custom_template:
         template = env.from_string(custom_template.read())
@@ -132,3 +140,7 @@ def create_argument_parser():
 def main():
     args = create_argument_parser().parse_args()
     render_docs(args.output, args.module, args.template)
+
+
+if __name__ == '__main__':
+    main()

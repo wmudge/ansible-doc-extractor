@@ -1,4 +1,5 @@
 .. _{{ module }}_module:
+.. include:: <isoamsa.txt>
 
 {% if short_description %}
 {%   set title = module + ' -- ' + short_description | rst_ify %}
@@ -6,24 +7,26 @@
 {%   set title = module %}
 {% endif %}
 
+.. title:: {{ title }}
+
 {{ title }}
-{{ '=' * title|length }}
+{{ '=' * title | length }}
 
 .. contents::
    :local:
    :depth: 1
-
 
 {% if description -%}
 Synopsis
 --------
 
 {%   for desc in description %}
-{{ desc | rst_ify }}
+- {{ desc | rst_ify }}
 
 {%   endfor %}
 {% endif %}
 
+{# TODO Handle module aliases #}
 
 {% if requirements -%}
 Requirements
@@ -33,23 +36,45 @@ The below requirements are needed on the host that executes this module.
 {%   for req in requirements %}
 - {{ req | rst_ify }}
 {%   endfor %}
+
 {% endif %}
 
-
-{% macro option_desc(opts, level) %}
+{% macro option_row(opts) %}
 {%   for name, spec in opts.items() %}
-{%     set req = spec.required | default("optional") %}
-{%     set typ = spec.type | default("any") %}
-{%     set def_val = spec.default | default("None") %}
-  {{ "  " * level }}{{ name }} ({{ req }}, {{ typ }}, {{ def_val }})
-{%     for para in spec.description %}
-    {{ "  " * level }}{{ para | rst_ify }}
-
-{%     endfor %}
-
-{%     if spec.suboptions %}
-{{ option_desc(spec.suboptions, level + 1) }}
+{%     set required = spec.required | default(False) %}
+{%     set type = spec.type | default("any") %}
+{%     set default = spec.default | default() %}
+   * -
+       | {{ name }}
+       | ``{{ type }}``
+       {{ '| *Required*' if required }}
+     -
+{%     if 'choices' in spec %}
+       **Choices:**
+{%       for choice in spec['choices'] %}
+{%         if choice == default %}
+        - **{{ choice }}** |larr|
+{%         else %}
+        - {{ choice }}
+{%         endif %}
+{%       endfor %}
+{%     elif default != '' %}
+       | **Default:**
+       | {{ default }}
 {%     endif %}
+     -
+{%     if 'description' in spec %}
+{%       for line in spec['description'] %}
+       | {{ line | rst_ify }}
+{%       endfor %}
+{%       if 'aliases' in spec %}
+       |
+{%       endif %}
+{%     endif %}
+{%     if 'aliases' in spec %}
+       | *aliases: {{ spec['aliases'] | join(', ') }}*
+{%     endif %}
+
 {%   endfor %}
 {% endmacro %}
 
@@ -57,9 +82,15 @@ The below requirements are needed on the host that executes this module.
 Parameters
 ----------
 
-{{ option_desc(options, 0) }}
-{% endif %}
+.. list-table::
+   :header-rows: 1
 
+   * - Parameter
+     - Choices/Defaults
+     - Comments
+
+{{ option_row(options) }}
+{% endif %}
 
 {% if notes -%}
 Notes
@@ -78,21 +109,21 @@ See Also
 
 .. seealso::
 
-{% for item in seealso %}
-{%   if item.module is defined and item.description is defined %}
+{%   for item in seealso %}
+{%     if item.module is defined and item.description is defined %}
    :ref:`{{ item.module }}_module`
        {{ item.description | rst_ify }}
-{%   elif item.module is defined %}
+{%     elif item.module is defined %}
    :ref:`{{ item.module }}_module`
       The official documentation on the **{{ item.module }}** module.
-{%   elif item.name is defined and item.link is defined and item.description is defined %}
+{%     elif item.name is defined and item.link is defined and item.description is defined %}
    `{{ item.name }} <{{ item.link }}>`_
        {{ item.description | rst_ify }}
-{%   elif item.ref is defined and item.description is defined %}
+{%     elif item.ref is defined and item.description is defined %}
    :ref:`{{ item.ref }}`
        {{ item.description | rst_ify }}
-{%   endif %}
-{% endfor %}
+{%     endif %}
+{%   endfor %}
 {% endif %}
 
 
@@ -102,7 +133,8 @@ Examples
 
 .. code-block:: yaml+jinja
 
-{{ examples | indent(4, True) }}
+{{ examples | indent(2, True) }}
+
 {% endif %}
 
 {% macro result_desc(results, level) %}
@@ -122,13 +154,98 @@ Examples
 {%   endfor %}
 {% endmacro %}
 
+{% macro parse_returndocs(docs, level) %}
+{%   set parsed.max_level = level %}
+{%   for name, spec in docs.items() %}
+{%     set row = {} %}
+{%     do row.update(level=level) %}
+{%     do row.update(name='**' + name + '**') %}
+{%     do set_max_key(row.name, level) %}
+{%     if 'type' in spec %}
+{%       do row.update(value='``' + spec.type + '``') %}
+{%     endif %}
+{%     do row.update(returned=spec.returned | string | rst_ify) %}
+{%     do set_max_returned(row.returned) %}
+{%     if 'description' in spec %}
+{%       do row.update(description=spec.description | map('string') | map('rst_ify') | list) %}
+{%       do set_max_description(row.description) %}
+{%     endif %}
+{%     if 'sample' in spec %}
+{%       do row.update(sample=spec.sample | map('string') | map('rst_ify') | list) %}
+{%       do set_max_description(row.sample) %}
+{%     endif %}
+{%     do parsed.rows.append(row) %}
+{%     if spec.type in ['dict', 'complex'] and 'contains' in spec %}
+{%       do parse_returndocs(spec.contains, level + 1) %}
+{%     endif %}
+{%   endfor %}
+{% endmacro %}
+
+{% macro set_max_key(value, level) %}
+{%   set max = value | length + (level * 2) %}
+{%   if max > parsed.max_key %}
+{%     set parsed.max_key = max %}
+{%   endif %}
+{% endmacro %}
+
+{% macro set_max_returned(value) %}
+{%   set max = value | length %}
+{%   if max > parsed.max_returned %}
+{%     set parsed.max_returned = max %}
+{%   endif %}
+{% endmacro %}
+
+{% macro set_max_description(value) %}
+{%   for line in value %}
+{%     set max = line | length %}
+{%     if max > parsed.max_description %}
+{%       set parsed.max_description = max %}
+{%     endif %}
+{%   endfor %}
+{% endmacro %}
+
+{%- macro build_divider(level) %}
+   +-{{ '+-' * level }}{{ '-' * (parsed.max_key + 2 - (level * 2)) }}-+-{{ '-' * parsed.max_returned }}-+-{{ '-' * (parsed.max_description + 2) }}-+
+{%- endmacro %}
+
+{%- macro build_content(level, name='', returned='', description='') %}
+   | | {{ '| ' * level }}{{ name }}{{ ' ' * (parsed.max_key - (name | length) - (level * 2)) }} | {{ returned }}{{ ' ' * (parsed.max_returned - (returned | length)) }} | | {{ description }}{{ ' ' * (parsed.max_description - (description | length)) }} |
+{%- endmacro %}
+
 {% if returndocs -%}
 Return Values
 -------------
 
-{{ result_desc(returndocs, 0) }}
-{% endif %}
+Common return values are documented here, the following are fields unique to this module.
 
+{% set parsed = namespace(rows=[], current_level=0, max_level=0, max_key=7, max_returned=0, max_description=11) %}
+{% do parse_returndocs(returndocs, 0) %}
+
+.. table::
+
+{% for row in parsed.rows %}
+{%   set level = row.level if parsed.current_level < row.level else parsed.current_level %}
+{{ build_divider(level) }}
+{{ build_content(row.level, name=row.name, returned=row.returned, description=row.description[0] if row.description) }}
+{{ build_content(row.level, name=row.value, description=row.description[1] if row.description and row.description | length > 0) }}
+{%   if row.description | length > 1 %}
+{%     for line in row.description[2:] %}
+{{ build_content(row.level, description=line) }}
+{%     endfor %}
+{%   endif %}
+{%   if row.sample %}
+{{ build_content(row.level, description='**Sample:**') }}
+{%     for line in row.sample %}
+{{ build_content(row.level, description=line) }}
+{%     endfor %}
+{%   endif %}
+{%   set parsed.current_level = row.level %}
+{%   if loop.index == parsed.rows | length %}
+{{ build_divider(row.level) }}
+{%   endif %}
+{% endfor %}
+
+{% endif %}
 
 Status
 ------
