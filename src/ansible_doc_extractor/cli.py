@@ -39,6 +39,14 @@ def rst_ify(text):
     return t
 
 
+def append(text, suffix):
+    return text + suffix
+
+
+def prepend(text, prefix):
+    return prefix + text
+
+
 def ensure_list(value):
     if isinstance(value, list):
         return value
@@ -94,6 +102,8 @@ def get_template(custom_template):
         extensions=['jinja2.ext.do']
     )
     env.filters["rst_ify"] = rst_ify
+    env.filters["append"] = append
+    env.filters["prepend"] = prepend
     if custom_template:
         template = env.from_string(custom_template.read())
         custom_template.close()
