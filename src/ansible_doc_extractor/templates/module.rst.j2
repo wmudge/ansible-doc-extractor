@@ -1,5 +1,8 @@
 .. _{{ module }}_module:
 .. include:: <isoamsa.txt>
+.. |br| raw:: html
+
+   <br />
 
 {% if short_description %}
 {%   set title = module + ' -- ' + short_description | rst_ify %}
@@ -45,7 +48,7 @@ The below requirements are needed on the host that executes this module.
 {%     set type = spec.type | default("any") %}
 {%     set default = spec.default | default() %}
    * -
-       | {{ name }}
+       | **{{ name }}**
        | ``{{ type }}``
        {{ '| *Required*' if required }}
      -
@@ -84,6 +87,7 @@ Parameters
 
 .. list-table::
    :header-rows: 1
+   :widths: 30 20 50
 
    * - Parameter
      - Choices/Defaults
@@ -154,7 +158,7 @@ Examples
 {%   endfor %}
 {% endmacro %}
 
-{% macro parse_returndocs(docs, level) %}
+{%- macro parse_returndocs(docs, level) %}
 {%   set parsed.max_level = level %}
 {%   for name, spec in docs.items() %}
 {%     set row = {} %}
@@ -179,37 +183,37 @@ Examples
 {%       do parse_returndocs(spec.contains, level + 1) %}
 {%     endif %}
 {%   endfor %}
-{% endmacro %}
+{%- endmacro %}
 
-{% macro set_max_key(value, level) %}
+{%- macro set_max_key(value, level) %}
 {%   set max = value | length + (level * 2) %}
 {%   if max > parsed.max_key %}
 {%     set parsed.max_key = max %}
 {%   endif %}
-{% endmacro %}
+{%- endmacro %}
 
-{% macro set_max_returned(value) %}
+{%- macro set_max_returned(value) %}
 {%   set max = value | length %}
 {%   if max > parsed.max_returned %}
 {%     set parsed.max_returned = max %}
 {%   endif %}
-{% endmacro %}
+{%- endmacro %}
 
-{% macro set_max_description(value) %}
+{%- macro set_max_description(value) %}
 {%   for line in value %}
 {%     set max = line | length %}
 {%     if max > parsed.max_description %}
 {%       set parsed.max_description = max %}
 {%     endif %}
 {%   endfor %}
-{% endmacro %}
+{%- endmacro %}
 
 {%- macro build_divider(level) %}
-   +-{{ '+-' * level }}{{ '-' * (parsed.max_key + 2 - (level * 2)) }}-+-{{ '-' * parsed.max_returned }}-+-{{ '-' * (parsed.max_description + 2) }}-+
+   +-{{ '+-' * level }}{{ '-' * (parsed.max_key - (level * 2)) }}-+-{{ '-' * parsed.max_returned }}-+-{{ '-' * parsed.max_description }}-+
 {%- endmacro %}
 
 {%- macro build_content(level, name='', returned='', description='') %}
-   | | {{ '| ' * level }}{{ name }}{{ ' ' * (parsed.max_key - (name | length) - (level * 2)) }} | {{ returned }}{{ ' ' * (parsed.max_returned - (returned | length)) }} | | {{ description }}{{ ' ' * (parsed.max_description - (description | length)) }} |
+   | {{ '| ' * level }}{{ name }}{{ ' ' * (parsed.max_key - (name | length) - (level * 2)) }} | {{ returned }}{{ ' ' * (parsed.max_returned - (returned | length)) }} | {{ description }}{{ ' ' * (parsed.max_description - (description | length)) }} |
 {%- endmacro %}
 
 {% if returndocs -%}
@@ -222,21 +226,32 @@ Common return values are documented here, the following are fields unique to thi
 {% do parse_returndocs(returndocs, 0) %}
 
 .. table::
+   :widths: 30 20 50
 
+{{ build_divider(0) }}
+{{ build_content(0, '**Key**', '**Returned**', '**Description**') }}
 {% for row in parsed.rows %}
 {%   set level = row.level if parsed.current_level < row.level else parsed.current_level %}
 {{ build_divider(level) }}
 {{ build_content(row.level, name=row.name, returned=row.returned, description=row.description[0] if row.description) }}
-{{ build_content(row.level, name=row.value, description=row.description[1] if row.description and row.description | length > 0) }}
-{%   if row.description | length > 1 %}
-{%     for line in row.description[2:] %}
+{{ build_content(row.level, description=row.description[1] if row.description and row.description | length > 0) }}
+{{ build_content(row.level, name='|br|', description=row.description[2] if row.description and row.description | length > 1) }}
+{{ build_content(row.level, description=row.description[3] if row.description and row.description | length > 2) }}
+{{ build_content(row.level, name=row.value, description=row.description[4] if row.description and row.description | length > 3) }}
+{%   if row.description | length > 5 %}
+{%     for line in row.description[4:] %}
 {{ build_content(row.level, description=line) }}
 {%     endfor %}
 {%   endif %}
 {%   if row.sample %}
+{{ build_content(row.level) }}
+{{ build_content(row.level, description='|br|') }}
+{{ build_content(row.level) }}
 {{ build_content(row.level, description='**Sample:**') }}
+{{ build_content(row.level) }}
 {%     for line in row.sample %}
 {{ build_content(row.level, description=line) }}
+{{ build_content(row.level) }}
 {%     endfor %}
 {%   endif %}
 {%   set parsed.current_level = row.level %}
