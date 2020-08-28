@@ -65,7 +65,7 @@ The below requirements are needed on the host that executes this module.
      -
 {%     if 'description' in spec %}
 {%       for line in spec['description'] %}
-       | {{ line | rst_ify }}
+       | {{ line | string | rst_ify }}
 {%       endfor %}
 {%       if 'aliases' in spec %}
        |
@@ -175,7 +175,7 @@ Examples
 {%       do set_max_description(row.sample) %}
 {%     endif %}
 {%     do parsed.rows.append(row) %}
-{%     if spec.type in ['dict', 'complex'] and 'contains' in spec %}
+{%     if 'contains' in spec %}
 {%       do parse_returndocs(spec.contains, level + 1) %}
 {%     endif %}
 {%   endfor %}
